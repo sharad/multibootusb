@@ -17,7 +17,7 @@ clone=0
 eficonfig=0
 interactive=0
 data_part=2
-data_fmt="vfat"
+data_fmt="ext4"
 data_size=""
 efi_mnt=""
 data_mnt=""
@@ -167,6 +167,29 @@ esac
 # Print all steps
 set -o verbose
 
+
+# Create temporary directories
+efi_mnt=$(mktemp -p "$tmp_dir" -d efi.XXXX)   || cleanUp 10
+data_mnt=$(mktemp -p "$tmp_dir" -d data.XXXX) || cleanUp 10
+repo_dir=$(mktemp -p "$tmp_dir" -d repo.XXXX) || cleanUp 10
+
+echo efi_mnt=$efi_mnt
+echo data_mnt=$data_mnt
+echo repo_dir=$repo_dir
+
+for xdir in $efi_mnt $data_mnt $repo_dir
+do
+	if [ -d $xdir ]
+	then
+		ls "$xdir"
+	else
+		echo $xdir not exists
+		exit -1
+	fi
+done
+
+# exit 0
+
 # Remove partitions
 sgdisk --zap-all "$usb_dev"
 
@@ -254,9 +277,28 @@ fi
 unmountUSB "$usb_dev"
 
 # Create temporary directories
-efi_mnt=$(mktemp -p "$tmp_dir" -d efi.XXXX)   || cleanUp 10
-data_mnt=$(mktemp -p "$tmp_dir" -d data.XXXX) || cleanUp 10
-repo_dir=$(mktemp -p "$tmp_dir" -d repo.XXXX) || cleanUp 10
+# efi_mnt=$(mktemp -p "$tmp_dir" -d efi.XXXX)   || cleanUp 10
+# data_mnt=$(mktemp -p "$tmp_dir" -d data.XXXX) || cleanUp 10
+# repo_dir=$(mktemp -p "$tmp_dir" -d repo.XXXX) || cleanUp 10
+
+echo efi_mnt=$efi_mnt
+echo data_mnt=$data_mnt
+echo repo_dir=$repo_dir
+
+for xdir in $efi_mnt $data_mnt $repo_dir
+do
+	if [ -d $xdir ]
+	then
+		ls "$xdir"
+	else
+		echo $xdir not exists
+		exit -1
+	fi
+done
+
+
+
+
 
 # Mount EFI System partition
 [ "$eficonfig" -eq 1 ] && \
@@ -271,6 +313,8 @@ mount "${usb_dev}${data_part}" "$data_mnt" || cleanUp 10
     --boot-directory="${data_mnt}/${data_subdir}" --removable --recheck \
     || cleanUp 10; }
 
+if false
+then
 # Install GRUB for BIOS
 $grub_cmd --force --target=i386-pc \
     --boot-directory="${data_mnt}/${data_subdir}" --recheck "$usb_dev" \
@@ -279,7 +323,8 @@ $grub_cmd --force --target=i386-pc \
 # Install fallback GRUB
 $grub_cmd --force --target=i386-pc \
     --boot-directory="${data_mnt}/${data_subdir}" --recheck "${usb_dev}${data_part}" \
-    || true
+  || true
+fi
 
 # Create necessary directories
 mkdir -p "${data_mnt}/${data_subdir}/isos" || cleanUp 10
