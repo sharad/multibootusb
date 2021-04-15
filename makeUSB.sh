@@ -13,8 +13,8 @@ set -o errexit
 # Defaults
 scriptname=$(basename "$0")
 hybrid=0
-clone=0
-eficonfig=0
+clone=1
+eficonfig=1
 interactive=0
 data_part=2
 data_fmt="ext4"
@@ -190,20 +190,30 @@ done
 
 # exit 0
 
-# Remove partitions
-sgdisk --zap-all "$usb_dev"
+if false
+then
+	# Remove partitions
+	sgdisk --zap-all "$usb_dev"
 
-# Create GUID Partition Table
-sgdisk --mbrtogpt "$usb_dev" || cleanUp 10
+	# Create GUID Partition Table
+	echo sgdisk --mbrtogpt "$usb_dev"
+	sgdisk --mbrtogpt "$usb_dev" || cleanUp 10
 
-# Create BIOS boot partition (1M)
-sgdisk --new 1::+1M --typecode 1:ef02 \
-    --change-name 1:"BIOS boot partition" "$usb_dev" || cleanUp 10
+	echo sgdisk --mbrtogpt "$usb_dev"
 
-# Create EFI System partition (50M)
-[ "$eficonfig" -eq 1 ] && \
-    { sgdisk --new 2::+50M --typecode 2:ef00 \
-    --change-name 2:"EFI System" "$usb_dev" || cleanUp 10; }
+	echo sleep 60s
+	sleep 60s
+
+
+	# Create EFI System partition (50M)
+	sgdisk --new 1::+50M --typecode 1:ef00 \
+				 --change-name 1:"EFI System" "$usb_dev" || cleanUp 10;
+
+	# Create BIOS boot partition (1M)
+	sgdisk --new 2::+1M --typecode 2:ef02 \
+				 --change-name 2:"BIOS boot partition" "$usb_dev" || cleanUp 10
+
+fi
 
 # Set data partition size
 [ -z "$data_size" ] || \
@@ -226,9 +236,12 @@ case "$data_fmt" in
 		;;
 esac
 
-# Create data partition
-sgdisk --new ${data_part}::"${data_size}": --typecode ${data_part}:"$type_code" \
-    --change-name ${data_part}:"$part_name" "$usb_dev" || cleanUp 10
+if false
+then
+	# Create data partition
+	sgdisk --new ${data_part}::"${data_size}": --typecode ${data_part}:"$type_code" \
+				 --change-name ${data_part}:"$part_name" "$usb_dev" || cleanUp 10
+fi
 
 # Unmount device
 unmountUSB "$usb_dev"
@@ -250,27 +263,29 @@ fi
 # Set bootable flag for data partion
 sgdisk --attributes ${data_part}:set:2 "$usb_dev" || cleanUp 10
 
-# Unmount device
-unmountUSB "$usb_dev"
+if true
+then
+	# Unmount device
+	unmountUSB "$usb_dev"
 
-# Wipe BIOS boot partition
-wipefs -af "${usb_dev}1" || true
 
-# Format EFI System partition
-if [ "$eficonfig" -eq 1 ]; then
+	# Format EFI System partition
+	wipefs -af "${usb_dev}1" || true
+	mkfs.vfat -v -F 32 "${usb_dev}1" || cleanUp 10
+
+	# Wipe BIOS boot partition
 	wipefs -af "${usb_dev}2" || true
-	mkfs.vfat -v -F 32 "${usb_dev}2" || cleanUp 10
-fi
 
-# Wipe data partition
-wipefs -af "${usb_dev}${data_part}" || true
+	# Wipe data partition
+	wipefs -af "${usb_dev}${data_part}" || true
 
-# Format data partition
-if [ "$data_fmt" = "ntfs" ]; then
-	# Use mkntfs quick format
-	mkfs -t "$data_fmt" -f "${usb_dev}${data_part}" || cleanUp 10
-else
-	mkfs -t "$data_fmt" "${usb_dev}${data_part}"    || cleanUp 10
+	# Format data partition
+	if [ "$data_fmt" = "ntfs" ]; then
+		# Use mkntfs quick format
+		mkfs -t "$data_fmt" -f "${usb_dev}${data_part}" || cleanUp 10
+	else
+		mkfs -t "$data_fmt" "${usb_dev}${data_part}"    || cleanUp 10
+	fi
 fi
 
 # Unmount device
@@ -307,6 +322,10 @@ done
 # Mount data partition
 mount "${usb_dev}${data_part}" "$data_mnt" || cleanUp 10
 
+# Create necessary directories
+mkdir -p "${data_mnt}/${data_subdir}" || cleanUp 10
+
+
 # Install GRUB for EFI
 [ "$eficonfig" -eq 1 ] && \
     { $grub_cmd --target=x86_64-efi --efi-directory="$efi_mnt" \
@@ -332,7 +351,7 @@ mkdir -p "${data_mnt}/${data_subdir}/isos" || cleanUp 10
 if [ "$clone" -eq 1 ]; then
 	# Clone Git repository
 	(cd "$repo_dir" && \
-		git clone https://github.com/aguslr/multibootusb . && \
+		git clone git@github.com:sharad/multibootusb.git . && \
 		# Move all visible and hidden files and folders except '.' and '..'
 		for x in * .[!.]* ..?*; do if [ -e "$x" ]; then mv -- "$x" \
 			"${data_mnt}/${data_subdir}"/grub*/; fi; done) \
